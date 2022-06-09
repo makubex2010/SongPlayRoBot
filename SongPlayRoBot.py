@@ -6,7 +6,7 @@ from pyrogram.types import (
     InlineKeyboardMarkup
 )
 import yt_dlp
-from youtubesearch import YoutubeSearch
+from youtube_search import YoutubeSearch
 import requests
 
 import os
