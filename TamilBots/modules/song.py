@@ -22,7 +22,7 @@ def yt_search(s):
         return url
 
 
-@bot.on_message(filters.command(['s']))
+@app.on_message(filters.create(ignore_blacklisted_users) & filters.command("s"))
 def a(client, message):
     query = ''
     for i in message.command[1:]:
