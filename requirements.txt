@@ -2,4 +2,5 @@ TgCrypto
 Pyrogram
 yt-dlp
 youtube_search_python
+youtube_search
 requests
