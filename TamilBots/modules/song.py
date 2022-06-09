@@ -30,7 +30,7 @@ async def song(client, message):
     if args.startswith(" "):
         await message.reply("輸入歌曲名稱。 需要幫助請用 /help")
         return ""
-    status = await message.reply("🚀 🔎 🔎 歌曲搜尋中... 🎶 請稍等 ⏳️ 幾秒鐘 [🚀](https://telegra.ph/file/67f41ae52a85dfc0551ae.mp4)")
+    status = await message.reply("🚀 🔎 🔎 歌曲搜尋中... 🎶 請稍等 ⏳️ 幾秒鐘 [🚀](https://telegra.ph/file/d0a3a739f8a9b7e86e1f6.mp4)")
     video_link = yt_search(args)
     if not video_link:
         await status.edit("✖️ 抱歉，沒有找到歌曲 \n\n請嘗試其他關鍵詞或是用網址查詢 \n\例如:`/s 南拳媽媽-下雨天`")
