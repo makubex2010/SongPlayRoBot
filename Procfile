@@ -1,1 +1,1 @@
-worker: python3 SongPlayRoBot.py
+worker: worker: python3 -m TamilBots
