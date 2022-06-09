@@ -10,6 +10,7 @@ from youtube_search import YoutubeSearch
 import requests
 
 import os
+from config import Config
 
 bot = Client(
     'SongPlayRoBot',
