@@ -6,7 +6,7 @@ from pyrogram.types import (
     InlineKeyboardMarkup
 )
 import yt_dlp
-from youtube_search import YoutubeSearch
+from youtubesearchpython import VideosSearch
 import requests
 
 import os
@@ -58,7 +58,7 @@ def a(client, message):
         while len(results) == 0 and count < 6:
             if count>0:
                 time.sleep(1)
-            results = YoutubeSearch(query, max_results=1).to_dict()
+            results = VideosSearch(query, max_results=1).to_dict()
             count += 1
         # results = YoutubeSearch(query, max_results=1).to_dict()
         try:
