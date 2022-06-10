@@ -1,5 +1,3 @@
-# © TamilBots 2021-22
-
 from pyrogram import Client, filters
 from pyrogram.types import (
     InlineKeyboardButton,
@@ -87,7 +85,7 @@ def a(client, message):
         )
         print(str(e))
         return
-    m.edit("🔎 找到歌曲 🎶 請稍等 ⏳️ 幾秒鐘 [🚀](https://telegra.ph/file/d9d542bf37174c38bdb8d.mp4)")
+    m.edit("🔎 找到歌曲 🎶 請稍等 ⏳️ 幾秒鐘 [🚀](https://telegra.ph/file/d0a3a739f8a9b7e86e1f6.mp4)")
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(link, download=False)
