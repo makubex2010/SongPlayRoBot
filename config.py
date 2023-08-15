@@ -1,5 +1,3 @@
-import os
-import re
 from yt_dlp import YoutubeDL
 
 class Config:
@@ -10,4 +8,3 @@ class Config:
     START_IMG = os.environ.get("START_IMG")
     OWNER = os.environ.get("OWNER") 
     DOWNLOAD_LOCATION = os.environ.get("DOWNLOAD_LOCATION", "./DOWNLOADS/")
-    msg = {}
