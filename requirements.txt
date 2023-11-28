@@ -3,5 +3,6 @@ TgCrypto==1.2.2
 yt_dlp
 youtube_search_python
 youtube_search
-requests
+requests==2.31.0
 ffmpeg-python
+urllib3==1.26.17
