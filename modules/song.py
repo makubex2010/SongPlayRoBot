@@ -18,19 +18,17 @@ def time_to_seconds(time):
 
 @Client.on_message(filters.command('start') & filters.private)
 async def start(client, message):
-    reply_to_id = message.message_id
+    reply_to_id = message.id
     await message.reply_photo(
         photo=os.environ.get("START_IMG", ""),
         caption=f"歡迎 {message.from_user.mention} 使用音樂下載機器人！",
-        reply_markup=InlineKeyboardMarkup(
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(BUTTON1, url=GITCLONE)],
             [
-                [InlineKeyboardButton(BUTTON1, url=GITCLONE)],
-                [
-                    InlineKeyboardButton(OWNER, url=f"https://telegram.dog/{os.environ.get('OWNER', '')}"),
-                    InlineKeyboardButton(ABS, url=f"https://{B2}"),
-                ]
+                InlineKeyboardButton(OWNER, url=f"https://telegram.dog/{os.environ.get('OWNER', '')}"),
+                InlineKeyboardButton(ABS, url=f"https://{B2}"),
             ]
-        ),
+        ]),
         reply_to_message_id=reply_to_id
     )
 
@@ -59,11 +57,11 @@ async def search_and_download(client, message):
         await message.reply("請提供要搜尋的歌曲名稱，例如：\n/s 南拳媽媽-下雨天")
         return
 
-    m = await message.reply('正在搜尋...請稍候...')
+    m = await message.reply('正在搜尋...請等待...')
 
     cookies_content = os.environ.get('COOKIES')
     if not cookies_content or not cookies_content.strip():
-        await m.edit("❌ Cookies 未設定，無法下載受限影片。請設置環境變數 COOKIES。")
+        await m.edit("❌ Cookies 未設定，無法下載受限影片。請設置環境變數 COOKIES")
         return
 
     with open('cookies.txt', 'w', encoding='utf-8') as f:
@@ -93,7 +91,7 @@ async def search_and_download(client, message):
             count += 1
 
         if not results:
-            await m.edit('**沒有搜尋到！請用另一種方式搜尋**')
+            await m.edit('**沒有搜尋到！請換個關鍵字或更準確名稱**')
             return
 
         link = f"https://youtube.com{results[0]['url_suffix']}"
@@ -102,12 +100,12 @@ async def search_and_download(client, message):
         duration = results[0]["duration"]
 
         performer = ""
-        thumb_name = f'thumb_{message.message_id}.jpg'
+        thumb_name = f'thumb_{message.id}.jpg'
         thumb_data = requests.get(thumbnail).content
         with open(thumb_name, 'wb') as thumb_file:
             thumb_file.write(thumb_data)
 
-        await m.edit("🔎 找到歌曲 🎶，準備下載...")
+        await m.edit("🔎 找到歌曲 🎶，正在下載...")
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(link, download=False)
@@ -137,7 +135,6 @@ async def search_and_download(client, message):
         print("錯誤:", e)
 
     finally:
-        # 確保檔案存在且 audio_file, thumb_name 有賦值才刪除
         try:
             if audio_file and os.path.exists(audio_file):
                 os.remove(audio_file)
