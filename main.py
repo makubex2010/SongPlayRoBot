@@ -1,6 +1,6 @@
 import os
 import re
-from youtube_dl import YoutubeDL
+from yt_dlp import YoutubeDL
 
 class Config:
     API_ID = int(os.environ.get("API_ID"))
