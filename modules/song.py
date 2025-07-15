@@ -6,9 +6,7 @@ import os
 import time
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# 你的設定
 ABS = "源代碼"
-APPER = "shamilhabeeb"
 OWNER = "所有者"
 GITCLONE = "https://t.me/PlayStationTw"
 B2 = "github.com/makubex2010/SongPlayRoBot"
@@ -22,7 +20,7 @@ def time_to_seconds(time):
 async def start(client, message):
     reply_to_id = message.message_id
     await message.reply_photo(
-        photo=os.environ.get("START_IMG", ""),  # 從環境變量讀取圖片連結或本地路徑
+        photo=os.environ.get("START_IMG", ""),
         caption=f"歡迎 {message.from_user.mention} 使用音樂下載機器人！",
         reply_markup=InlineKeyboardMarkup(
             [
@@ -49,7 +47,7 @@ async def help_handler(client, message):
 @Client.on_message(filters.command('cookie_check') & filters.private)
 async def cookie_check(client, message):
     cookies_content = os.environ.get('COOKIES')
-    if cookies_content:
+    if cookies_content and cookies_content.strip():
         await message.reply("✅ Cookies 已設定。")
     else:
         await message.reply("❌ Cookies 未設定或為空。")
@@ -64,11 +62,10 @@ async def search_and_download(client, message):
     m = await message.reply('正在搜尋...請稍候...')
 
     cookies_content = os.environ.get('COOKIES')
-    if not cookies_content:
+    if not cookies_content or not cookies_content.strip():
         await m.edit("❌ Cookies 未設定，無法下載受限影片。請設置環境變數 COOKIES。")
         return
 
-    # 將 cookies 寫入檔案
     with open('cookies.txt', 'w', encoding='utf-8') as f:
         f.write(cookies_content.strip())
 
@@ -82,6 +79,9 @@ async def search_and_download(client, message):
             "youtubetab": {"skip": "authcheck"}
         }
     }
+
+    audio_file = None
+    thumb_name = None
 
     try:
         results = []
@@ -109,7 +109,6 @@ async def search_and_download(client, message):
 
         await m.edit("🔎 找到歌曲 🎶，準備下載...")
 
-        audio_file = None
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(link, download=False)
             audio_file = ydl.prepare_filename(info_dict)
@@ -135,13 +134,14 @@ async def search_and_download(client, message):
 
     except Exception as e:
         await m.edit('❌ 發生內部錯誤，請聯絡管理員！')
-        print(e)
+        print("錯誤:", e)
 
     finally:
+        # 確保檔案存在且 audio_file, thumb_name 有賦值才刪除
         try:
             if audio_file and os.path.exists(audio_file):
                 os.remove(audio_file)
-            if os.path.exists(thumb_name):
+            if thumb_name and os.path.exists(thumb_name):
                 os.remove(thumb_name)
         except Exception as e:
             print("刪除檔案錯誤：", e)
