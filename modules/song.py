@@ -20,7 +20,7 @@ def time_to_seconds(time):
 
 @Client.on_message(filters.command('start') & filters.private)
 async def start(client, message):
-    reply_to_id = message.message_id if hasattr(message, 'message_id') else None
+    reply_to_id = getattr(message, 'message_id', None)  # 使用 getattr 以防止 AttributeError
     await message.reply_photo(photo=Config.START_IMG, caption=Config.START_MSG.format(message.from_user.mention),
          reply_markup=InlineKeyboardMarkup(
             [
@@ -60,7 +60,7 @@ async def a(client, message):
         duration = results[0]["duration"]
 
         performer = ""
-        thumb_name = f'thumb{message.message_id}.jpg'
+        thumb_name = f'thumb{getattr(message, "message_id", "default")}.jpg'  # 使用 getattr
         thumb = requests.get(thumbnail, allow_redirects=True)
         open(thumb_name, 'wb').write(thumb.content)
 
