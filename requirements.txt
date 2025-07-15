@@ -1,4 +1,4 @@
-Pyrogram==2.0.106
+Pyrogram
 TgCrypto==1.2.2
 yt_dlp
 youtube_search_python
