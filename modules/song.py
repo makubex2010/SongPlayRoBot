@@ -137,6 +137,7 @@ async def search_and_download(client, message):
         print("錯誤:", e)
 
     finally:
+        # 確保檔案存在且 audio_file, thumb_name 有賦值才刪除
         try:
             if audio_file and os.path.exists(audio_file):
                 os.remove(audio_file)
