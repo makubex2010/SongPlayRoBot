@@ -6,3 +6,4 @@ youtube_search
 requests==2.31.0
 ffmpeg-python
 urllib3==1.26.17
+youtube_dl
