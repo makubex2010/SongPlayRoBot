@@ -6,14 +6,14 @@ import os
 import time
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# 你可以把這些放在 config.py 或自己改
+# 這裡可以改成你的 config 或自己設定
 class Config:
-    START_IMG = "https://telegra.ph/file/abcd1234.jpg"  # 你的啟動圖片網址
-    START_MSG = "你好，{}！歡迎使用音樂下載機器人。"
-    OWNER = "你的TelegramID或username"
+    START_IMG = "https://telegra.ph/file/your_start_image.jpg"
+    START_MSG = "嗨，{0}，歡迎使用音樂機器人！\n用 /s 指令搜尋音樂"
+    OWNER = "yourtelegramusername"  # Telegram 使用者帳號
 
+# 介面文字
 ABS = "源代碼"
-APPER = "shamilhabeeb"
 OWNER = "所有者"
 GITCLONE = "https://t.me/PlayStationTw"
 B2 = "github.com/makubex2010/SongPlayRoBot"
@@ -26,12 +26,12 @@ def time_to_seconds(time):
 @Client.on_message(filters.command('start') & filters.private)
 async def start(client, message):
     reply_to_id = getattr(message, 'message_id', None)
-    await message.reply_photo(photo=Config.START_IMG, caption=Config.START_MSG.format(message.from_user.mention),
-         reply_markup=InlineKeyboardMarkup(
+    await message.reply_photo(
+        photo=Config.START_IMG,
+        caption=Config.START_MSG.format(message.from_user.mention),
+        reply_markup=InlineKeyboardMarkup(
             [
-                [
-                    InlineKeyboardButton(BUTTON1, url=GITCLONE)
-                ],
+                [InlineKeyboardButton(BUTTON1, url=GITCLONE)],
                 [
                     InlineKeyboardButton(OWNER, url=f"https://telegram.dog/{Config.OWNER}"),
                     InlineKeyboardButton(ABS, url=B2)
@@ -41,67 +41,58 @@ async def start(client, message):
         reply_to_message_id=reply_to_id
     )
 
-@Client.on_message(filters.command(['help']) & filters.private)
-async def help_cmd(client, message):
+@Client.on_message(filters.command('help') & filters.private)
+async def help_command(client, message):
     help_text = (
         "/start - 啟動機器人\n"
-        "/s <歌曲名稱> - 搜尋並下載YouTube音樂\n"
-        "/cookie_check - 檢查 cookies 設定是否有效\n"
-        "/help - 顯示幫助訊息"
+        "/help - 幫助資訊\n"
+        "/s <關鍵字> - 搜尋並下載YouTube音樂\n"
+        "/cookie_check - 檢查是否有成功載入 cookies"
     )
     await message.reply(help_text)
 
-@Client.on_message(filters.command(['cookie_check']) & filters.private)
+@Client.on_message(filters.command('cookie_check') & filters.private)
 async def cookie_check(client, message):
-    cookies_content = os.environ.get('COOKIES', '')
-    if not cookies_content.strip():
-        await message.reply("⚠️ 尚未設定 COOKIES 環境變數，請先設置有效的 YouTube Cookies。")
-        return
-    try:
-        # 簡單檢查是否看起來像 Netscape 格式（有無換行且有 tabs）
-        if '\n' in cookies_content and '\t' in cookies_content:
-            await message.reply("✅ COOKIES 環境變數看起來格式正常。")
-        else:
-            await message.reply("⚠️ COOKIES 格式異常，請確認為Netscape格式的cookies內容。")
-    except Exception as e:
-        await message.reply(f"❌ 檢查 COOKIES 時發生錯誤：{e}")
+    cookies = os.environ.get('COOKIES')
+    if cookies:
+        await message.reply("✅ 已成功載入 COOKIES 環境變數。")
+    else:
+        await message.reply("❌ 未設定 COOKIES 環境變數，請設定正確的 YouTube cookies。")
 
-@Client.on_message(filters.command(['s']) & filters.private)
+@Client.on_message(filters.command('s') & filters.private)
 async def search_and_download(client, message):
     query = ' '.join(message.command[1:])
     if not query:
-        await message.reply("請輸入歌曲名稱，例如： /s 南拳媽媽-下雨天")
+        await message.reply("請輸入搜尋關鍵字。範例： /s 南拳媽媽 下雨天")
         return
-
+    
     m = await message.reply('正在搜尋...請稍候...')
-
-    cookies_content = os.environ.get('COOKIES', '')
-    if not cookies_content.strip():
-        await m.edit("⚠️ 尚未設定 COOKIES 環境變數，無法進行下載。")
+    
+    # 讀取環境變數 COOKIES 並寫入 cookies.txt
+    cookies_content = os.environ.get('COOKIES')
+    if not cookies_content:
+        await m.edit("❌ 未設定 COOKIES 環境變數，無法使用 YouTube 需要登入的功能。")
         return
-
-    # 把環境變數中的換行符號 '\n' 轉成真正換行，避免寫檔格式錯誤
+    
     with open('cookies.txt', 'w', encoding='utf-8') as f:
-        f.write(cookies_content.replace('\\n', '\n'))
-
+        f.write(cookies_content)
+    
     ydl_opts = {
-        "format": "bestaudio[ext=m4a]/bestaudio/best",
+        "format": "bestaudio[ext=m4a]",
         "cookiefile": "cookies.txt",
-        "outtmpl": "%(title)s.%(ext)s",
+        "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
-        "ignoreerrors": True,
-        "nocheckcertificate": True,
+        "outtmpl": "%(title)s.%(ext)s",
         "postprocessors": [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'm4a',
-            'preferredquality': '192',
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "m4a",
+            "preferredquality": "192",
         }],
     }
-
+    
     audio_file = None
     thumb_name = None
-
     try:
         results = []
         count = 0
@@ -119,22 +110,22 @@ async def search_and_download(client, message):
         title = results[0]["title"]
         thumbnail = results[0]["thumbnails"][0]
         duration = results[0]["duration"]
-        performer = ""
 
-        thumb_name = f'thumb{message.message_id}.jpg'
+        performer = ""
+        thumb_name = f"thumb{message.message_id}.jpg"
         thumb = requests.get(thumbnail, allow_redirects=True)
         with open(thumb_name, 'wb') as f:
             f.write(thumb.content)
 
-        await m.edit("🔎 找到歌曲 🎶 請稍等 ⏳ 幾秒鐘...")
-
+        await m.edit("🔎 找到歌曲 🎶 請稍等 ⏳ ...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(link, download=True)
-            audio_file = ydl.prepare_filename(info_dict)
-            # yt-dlp 已自動下載並轉檔，音檔路徑在 audio_file
+            audio_file = ydl.prepare_filename(info_dict).replace(".webm", ".m4a").replace(".mp4", ".m4a")
 
-        rep = f'🎧  <b>標題 : </b> <a href="{link}">{title}</a>\n⏳ <b>歌曲時間 : </b> <code>{duration}</code>'
+        rep = (f'🎧  <b>標題 : </b> <a href="{link}">{title}</a>\n'
+               f'⏳ <b>歌曲時間 : </b> <code>{duration}</code>')
         dur = time_to_seconds(duration)
+
         await message.reply_audio(
             audio_file,
             caption=rep,
@@ -148,17 +139,14 @@ async def search_and_download(client, message):
         await m.delete()
 
     except Exception as e:
-        await m.edit('❌ 發生錯誤，請確認 cookies 有效並重試。')
-        print(f"Error: {e}")
+        await m.edit('❌ 發生內部錯誤，請聯繫管理員！')
+        print("錯誤:", e)
 
-    finally:
-        try:
-            if audio_file and os.path.exists(audio_file):
-                os.remove(audio_file)
-            if thumb_name and os.path.exists(thumb_name):
-                os.remove(thumb_name)
-            if os.path.exists('cookies.txt'):
-                os.remove('cookies.txt')
-        except Exception as e:
-            print(f"Clean up error: {e}")
-
+    # 清理檔案
+    try:
+        if audio_file and os.path.exists(audio_file):
+            os.remove(audio_file)
+        if thumb_name and os.path.exists(thumb_name):
+            os.remove(thumb_name)
+    except Exception as e:
+        print("清理檔案錯誤:", e)
