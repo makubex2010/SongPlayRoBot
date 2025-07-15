@@ -1,25 +1,13 @@
-from pyrogram import Client, filters
-
-import yt_dlp
-from youtube_search import YoutubeSearch
-import requests
-
-import logging
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 import os
-from config import Config
+import re
+from YoutubeDL import YoutubeDL
 
-import pyrogram
-logging.getLogger("pyrogram").setLevel(logging.WARNING)
-
-
-app = pyrogram.Client(
-      "mwk",
-       bot_token=Config.BOT_TOKEN,
-       api_id=Config.API_ID,
-       api_hash=Config.API_HASH,
-       plugins=dict(root="modules")
-    )
-app.run()
+class Config:
+    API_ID = int(os.environ.get("API_ID"))
+    API_HASH = os.environ.get("API_HASH")
+    BOT_TOKEN = os.environ.get("BOT_TOKEN")
+    START_MSG = os.environ.get("START_MSG")
+    START_IMG = os.environ.get("START_IMG")
+    OWNER = os.environ.get("OWNER") 
+    DOWNLOAD_LOCATION = os.environ.get("DOWNLOAD_LOCATION", "./DOWNLOADS/")
+    msg = {}
