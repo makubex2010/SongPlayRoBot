@@ -11,3 +11,5 @@ class Config:
     OWNER = os.environ.get("OWNER") 
     DOWNLOAD_LOCATION = os.environ.get("DOWNLOAD_LOCATION", "./DOWNLOADS/")
     msg = {}
+if __name__ == "__main__":
+    app.run()
