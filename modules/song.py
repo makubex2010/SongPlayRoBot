@@ -1,10 +1,11 @@
 from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import yt_dlp
 from youtube_search import YoutubeSearch
 import requests
 import os
 import time
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from config import Config
 
 ABS = "源代碼"
 OWNER = "所有者"
@@ -22,13 +23,15 @@ async def start(client, message):
     await message.reply_photo(
         photo=os.environ.get("START_IMG", ""),
         caption=f"歡迎 {message.from_user.mention} 使用音樂下載機器人！",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton(BUTTON1, url=GITCLONE)],
+        reply_markup=InlineKeyboardMarkup(
             [
-                InlineKeyboardButton(OWNER, url=f"https://telegram.dog/{os.environ.get('OWNER', '')}"),
-                InlineKeyboardButton(ABS, url=f"https://{B2}"),
+                [InlineKeyboardButton(BUTTON1, url=GITCLONE)],
+                [
+                    InlineKeyboardButton(OWNER, url=f"https://telegram.dog/{os.environ.get('OWNER', '')}"),
+                    InlineKeyboardButton(ABS, url=f"https://{B2}"),
+                ]
             ]
-        ]),
+        ),
         reply_to_message_id=reply_to_id
     )
 
@@ -91,7 +94,7 @@ async def search_and_download(client, message):
             count += 1
 
         if not results:
-            await m.edit('**沒有搜尋到！請換個關鍵字或更準確名稱**')
+            await m.edit('**沒有搜尋到！請換個辦法**')
             return
 
         link = f"https://youtube.com{results[0]['url_suffix']}"
@@ -113,7 +116,7 @@ async def search_and_download(client, message):
             ydl.download([link])
 
         rep = (
-            f'🎧 <b>標題 :</b> <a href="{link}">{title}</a>\n'
+            f'🎷 <b>標題 :</b> <a href="{link}">{title}</a>\n'
             f'⏳ <b>歌曲時間 :</b> <code>{duration}</code>'
         )
         dur = time_to_seconds(duration)
