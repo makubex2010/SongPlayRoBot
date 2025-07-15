@@ -1,10 +1,10 @@
+from pyrogram import Client, filters
+import yt_dlp
+from youtube_search import YoutubeSearch
+import requests
 import os
 import time
-import requests
-from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from youtube_search import YoutubeSearch
-import youtube_dl
 
 ABS = "源代碼"
 OWNER = "所有者"
@@ -12,35 +12,27 @@ GITCLONE = "https://t.me/PlayStationTw"
 B2 = "github.com/makubex2010/SongPlayRoBot"
 BUTTON1 = "🎮 PlayStation 世界玩家會館 🎮"
 
-def time_to_seconds(time_str):
-    return sum(int(x) * 60 ** i for i, x in enumerate(reversed(time_str.split(':'))))
+def time_to_seconds(time):
+    stringt = str(time)
+    return sum(int(x) * 60 ** i for i, x in enumerate(reversed(stringt.split(':'))))
 
-app = Client(
-    "musicbot",
-    bot_token=os.environ.get("BOT_TOKEN"),
-    api_id=int(os.environ.get("API_ID")),
-    api_hash=os.environ.get("API_HASH"),
-)
-
-@app.on_message(filters.command("start") & filters.private)
+@Client.on_message(filters.command('start') & filters.private)
 async def start(client, message):
-    reply_to_id = message.message_id
+    reply_to_id = message.id
     await message.reply_photo(
         photo=os.environ.get("START_IMG", ""),
         caption=f"歡迎 {message.from_user.mention} 使用音樂下載機器人！",
-        reply_markup=InlineKeyboardMarkup(
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(BUTTON1, url=GITCLONE)],
             [
-                [InlineKeyboardButton(BUTTON1, url=GITCLONE)],
-                [
-                    InlineKeyboardButton(OWNER, url=f"https://telegram.dog/{os.environ.get('OWNER','')}"),
-                    InlineKeyboardButton(ABS, url=f"https://{B2}")
-                ]
+                InlineKeyboardButton(OWNER, url=f"https://telegram.dog/{os.environ.get('OWNER', '')}"),
+                InlineKeyboardButton(ABS, url=f"https://{B2}"),
             ]
-        ),
-        reply_to_message_id=reply_to_id,
+        ]),
+        reply_to_message_id=reply_to_id
     )
 
-@app.on_message(filters.command("help") & filters.private)
+@Client.on_message(filters.command('help') & filters.private)
 async def help_handler(client, message):
     text = (
         "使用說明：\n"
@@ -50,7 +42,7 @@ async def help_handler(client, message):
     )
     await message.reply(text)
 
-@app.on_message(filters.command("cookie_check") & filters.private)
+@Client.on_message(filters.command('cookie_check') & filters.private)
 async def cookie_check(client, message):
     cookies_content = os.environ.get('COOKIES')
     if cookies_content and cookies_content.strip():
@@ -58,22 +50,21 @@ async def cookie_check(client, message):
     else:
         await message.reply("❌ Cookies 未設定或為空。")
 
-@app.on_message(filters.command("s") & filters.private)
+@Client.on_message(filters.command(['s']) & filters.private)
 async def search_and_download(client, message):
     query = ' '.join(message.command[1:])
     if not query:
         await message.reply("請提供要搜尋的歌曲名稱，例如：\n/s 南拳媽媽-下雨天")
         return
 
-    m = await message.reply("正在搜尋...請稍候...")
+    m = await message.reply('正在搜尋...請等待...')
 
     cookies_content = os.environ.get('COOKIES')
     if not cookies_content or not cookies_content.strip():
-        await m.edit("❌ Cookies 未設定，無法下載受限影片。請設置環境變數 COOKIES。")
+        await m.edit("❌ Cookies 未設定，無法下載受限影片。請設置環境變數 COOKIES")
         return
 
-    # 把cookies寫入文件
-    with open("cookies.txt", "w", encoding="utf-8") as f:
+    with open('cookies.txt', 'w', encoding='utf-8') as f:
         f.write(cookies_content.strip())
 
     ydl_opts = {
@@ -82,7 +73,9 @@ async def search_and_download(client, message):
         "quiet": True,
         "no_warnings": True,
         "outtmpl": "downloads/%(title)s.%(ext)s",
-        "noplaylist": True,
+        "extractor_args": {
+            "youtubetab": {"skip": "authcheck"}
+        }
     }
 
     audio_file = None
@@ -98,7 +91,7 @@ async def search_and_download(client, message):
             count += 1
 
         if not results:
-            await m.edit("**沒有搜尋到！請用另一種方式搜尋**")
+            await m.edit('**沒有搜尋到！請換個關鍵字或更準確名稱**')
             return
 
         link = f"https://youtube.com{results[0]['url_suffix']}"
@@ -107,16 +100,17 @@ async def search_and_download(client, message):
         duration = results[0]["duration"]
 
         performer = ""
-        thumb_name = f"thumb_{message.message_id}.jpg"
+        thumb_name = f'thumb_{message.id}.jpg'
         thumb_data = requests.get(thumbnail).content
-        with open(thumb_name, "wb") as thumb_file:
+        with open(thumb_name, 'wb') as thumb_file:
             thumb_file.write(thumb_data)
 
-        await m.edit("🔎 找到歌曲 🎶，準備下載...")
+        await m.edit("🔎 找到歌曲 🎶，正在下載...")
 
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(link, download=True)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(link, download=False)
             audio_file = ydl.prepare_filename(info_dict)
+            ydl.download([link])
 
         rep = (
             f'🎧 <b>標題 :</b> <a href="{link}">{title}</a>\n'
@@ -127,17 +121,17 @@ async def search_and_download(client, message):
         await message.reply_audio(
             audio_file,
             caption=rep,
-            parse_mode="HTML",
+            parse_mode='HTML',
             quote=False,
             title=title,
             duration=dur,
             performer=performer,
-            thumb=thumb_name,
+            thumb=thumb_name
         )
         await m.delete()
 
     except Exception as e:
-        await m.edit("❌ 發生內部錯誤，請聯絡管理員！")
+        await m.edit('❌ 發生內部錯誤，請聯絡管理員！')
         print("錯誤:", e)
 
     finally:
@@ -146,10 +140,5 @@ async def search_and_download(client, message):
                 os.remove(audio_file)
             if thumb_name and os.path.exists(thumb_name):
                 os.remove(thumb_name)
-            if os.path.exists("cookies.txt"):
-                os.remove("cookies.txt")
         except Exception as e:
             print("刪除檔案錯誤：", e)
-
-if __name__ == "__main__":
-    app.run()
