@@ -6,72 +6,69 @@ import os
 import time
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# 你自己的設定參數
-class Config:
-    START_IMG = "https://telegra.ph/file/your_start_image.jpg"
-    START_MSG = "你好，{}！歡迎使用音樂播放機器人。"
-    OWNER = "你的TelegramID"
-
+# 你的設定
 ABS = "源代碼"
-OWNER_TEXT = "所有者"
+APPER = "shamilhabeeb"
+OWNER = "所有者"
 GITCLONE = "https://t.me/PlayStationTw"
 B2 = "github.com/makubex2010/SongPlayRoBot"
 BUTTON1 = "🎮 PlayStation 世界玩家會館 🎮"
 
-def time_to_seconds(time_str):
-    return sum(int(x) * 60 ** i for i, x in enumerate(reversed(time_str.split(':'))))
+def time_to_seconds(time):
+    stringt = str(time)
+    return sum(int(x) * 60 ** i for i, x in enumerate(reversed(stringt.split(':'))))
 
 @Client.on_message(filters.command('start') & filters.private)
 async def start(client, message):
-    reply_to_id = message.id
+    reply_to_id = message.message_id
     await message.reply_photo(
-        photo=Config.START_IMG,
-        caption=Config.START_MSG.format(message.from_user.mention),
+        photo=os.environ.get("START_IMG", ""),  # 從環境變量讀取圖片連結或本地路徑
+        caption=f"歡迎 {message.from_user.mention} 使用音樂下載機器人！",
         reply_markup=InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton(BUTTON1, url=GITCLONE)],
                 [
-                    InlineKeyboardButton(OWNER_TEXT, url=f"https://telegram.dog/{Config.OWNER}"),
-                    InlineKeyboardButton(ABS, url=B2)
+                    InlineKeyboardButton(OWNER, url=f"https://telegram.dog/{os.environ.get('OWNER', '')}"),
+                    InlineKeyboardButton(ABS, url=f"https://{B2}"),
                 ]
             ]
         ),
         reply_to_message_id=reply_to_id
     )
 
-@Client.on_message(filters.command(['help']) & filters.private)
-async def help_command(client, message):
-    help_text = """
-指令說明：
-/s <歌名> - 搜尋並下載 YouTube 音樂
-/cookie_check - 檢查 cookies 是否有效
-/help - 顯示此說明
-"""
-    await message.reply(help_text)
+@Client.on_message(filters.command('help') & filters.private)
+async def help_handler(client, message):
+    text = (
+        "使用說明：\n"
+        "/s [歌曲名稱] - 搜尋並下載 YouTube 音樂\n"
+        "/cookie_check - 檢查 cookies 是否有效\n"
+        "/help - 顯示此說明"
+    )
+    await message.reply(text)
 
-@Client.on_message(filters.command(['cookie_check']) & filters.private)
+@Client.on_message(filters.command('cookie_check') & filters.private)
 async def cookie_check(client, message):
     cookies_content = os.environ.get('COOKIES')
     if cookies_content:
-        await message.reply("✅ COOKIES 變數已設定。")
+        await message.reply("✅ Cookies 已設定。")
     else:
-        await message.reply("❌ COOKIES 變數尚未設定或為空。")
+        await message.reply("❌ Cookies 未設定或為空。")
 
 @Client.on_message(filters.command(['s']) & filters.private)
 async def search_and_download(client, message):
     query = ' '.join(message.command[1:])
     if not query:
-        await message.reply("請提供搜尋關鍵字，例如：/s 南拳媽媽 下雨天")
+        await message.reply("請提供要搜尋的歌曲名稱，例如：\n/s 南拳媽媽-下雨天")
         return
 
     m = await message.reply('正在搜尋...請稍候...')
 
-    # 將 COOKIES 環境變數內容寫入 cookies.txt
     cookies_content = os.environ.get('COOKIES')
     if not cookies_content:
-        await m.edit("❌ 尚未設定 COOKIES 環境變數，無法下載需要驗證的影片。")
+        await m.edit("❌ Cookies 未設定，無法下載受限影片。請設置環境變數 COOKIES。")
         return
 
+    # 將 cookies 寫入檔案
     with open('cookies.txt', 'w', encoding='utf-8') as f:
         f.write(cookies_content.strip())
 
@@ -80,7 +77,10 @@ async def search_and_download(client, message):
         "cookiefile": "cookies.txt",
         "quiet": True,
         "no_warnings": True,
-        "outtmpl": "%(title)s.%(ext)s",
+        "outtmpl": "downloads/%(title)s.%(ext)s",
+        "extractor_args": {
+            "youtubetab": {"skip": "authcheck"}
+        }
     }
 
     try:
@@ -93,22 +93,21 @@ async def search_and_download(client, message):
             count += 1
 
         if not results:
-            await m.edit('❌ 沒有搜尋到結果，請換個關鍵字再試。')
+            await m.edit('**沒有搜尋到！請用另一種方式搜尋**')
             return
 
-        video = results[0]
-        link = f"https://youtube.com{video['url_suffix']}"
-        title = video["title"]
-        thumbnail_url = video["thumbnails"][0]
-        duration = video["duration"]
+        link = f"https://youtube.com{results[0]['url_suffix']}"
+        title = results[0]["title"]
+        thumbnail = results[0]["thumbnails"][0]
+        duration = results[0]["duration"]
 
-        # 下載縮圖
-        thumb_name = f"thumb{message.id}.jpg"
-        thumb_resp = requests.get(thumbnail_url, allow_redirects=True)
-        with open(thumb_name, 'wb') as f:
-            f.write(thumb_resp.content)
+        performer = ""
+        thumb_name = f'thumb_{message.message_id}.jpg'
+        thumb_data = requests.get(thumbnail).content
+        with open(thumb_name, 'wb') as thumb_file:
+            thumb_file.write(thumb_data)
 
-        await m.edit("🔎 找到歌曲，正在下載中，請稍候...")
+        await m.edit("🔎 找到歌曲 🎶，準備下載...")
 
         audio_file = None
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -116,30 +115,33 @@ async def search_and_download(client, message):
             audio_file = ydl.prepare_filename(info_dict)
             ydl.download([link])
 
-        dur_seconds = time_to_seconds(duration)
-        caption = f'🎧 <b>標題：</b> <a href="{link}">{title}</a>\n⏳ <b>歌曲時間：</b> <code>{duration}</code>'
+        rep = (
+            f'🎧 <b>標題 :</b> <a href="{link}">{title}</a>\n'
+            f'⏳ <b>歌曲時間 :</b> <code>{duration}</code>'
+        )
+        dur = time_to_seconds(duration)
 
         await message.reply_audio(
             audio_file,
-            caption=caption,
+            caption=rep,
             parse_mode='HTML',
             quote=False,
             title=title,
-            duration=dur_seconds,
+            duration=dur,
+            performer=performer,
             thumb=thumb_name
         )
         await m.delete()
 
     except Exception as e:
-        await m.edit("❌ 發生錯誤，請聯繫機器人管理員。")
-        print(f"錯誤：{e}")
+        await m.edit('❌ 發生內部錯誤，請聯絡管理員！')
+        print(e)
 
     finally:
-        # 清理檔案
         try:
             if audio_file and os.path.exists(audio_file):
                 os.remove(audio_file)
             if os.path.exists(thumb_name):
                 os.remove(thumb_name)
         except Exception as e:
-            print(f"清理檔案時發生錯誤：{e}")
+            print("刪除檔案錯誤：", e)
