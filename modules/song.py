@@ -20,7 +20,7 @@ def time_to_seconds(time):
 
 @Client.on_message(filters.command('start') & filters.private)
 async def start(client, message):
-    reply_to_id = getattr(message, 'message_id', None)  # 使用 getattr 以防止 AttributeError
+    reply_to_id = getattr(message, 'message_id', None)
     await message.reply_photo(photo=Config.START_IMG, caption=Config.START_MSG.format(message.from_user.mention),
          reply_markup=InlineKeyboardMarkup(
             [
@@ -40,7 +40,18 @@ async def start(client, message):
 async def a(client, message):
     query = ' '.join(message.command[1:])
     m = await message.reply('正在搜索...請稍候...')
-    ydl_opts = {"format": "bestaudio[ext=m4a]"}
+    
+    # 將 cookies 寫入文件
+    cookies_content = os.environ.get('COOKIES')
+    with open('cookies.txt', 'w') as f:
+        f.write(cookies_content)
+
+    ydl_opts = {
+        "format": "bestaudio[ext=m4a]",
+        "cookiefile": "cookies.txt"  # 使用剛剛創建的 cookies 文件
+    }
+    
+    audio_file = None  # 初始化 audio_file
     try:
         results = []
         count = 0
@@ -60,7 +71,7 @@ async def a(client, message):
         duration = results[0]["duration"]
 
         performer = ""
-        thumb_name = f'thumb{getattr(message, "message_id", "default")}.jpg'  # 使用 getattr
+        thumb_name = f'thumb{getattr(message, "message_id", "default")}.jpg'
         thumb = requests.get(thumbnail, allow_redirects=True)
         open(thumb_name, 'wb').write(thumb.content)
 
@@ -80,7 +91,8 @@ async def a(client, message):
         print(e)
 
     try:
-        os.remove(audio_file)
+        if audio_file:
+            os.remove(audio_file)
         os.remove(thumb_name)
     except Exception as e:
         print(e)
