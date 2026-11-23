@@ -2,3 +2,4 @@ Pyrogram==2.0.106
 TgCrypto==1.2.5
 yt-dlp[default]
 python-dotenv>=1.0.1
+Pillow>=10.0.0
