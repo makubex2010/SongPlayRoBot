@@ -12,6 +12,7 @@ Telegram 音樂搜尋與音訊下載機器人。支援以歌曲名稱搜尋 YouT
 - Cookies 選填；遇到登入、年齡或地區限制時可設定
 - 非同步下載工作執行緒，避免阻塞 Telegram 事件迴圈
 - 可設定同時下載數量
+- 自動轉換及壓縮歌曲縮圖，符合 Telegram 音訊縮圖限制
 - 每次下載使用獨立暫存目錄，完成後自動清理
 - Docker / Docker Compose 部署，並保留 Windows 本機執行方式
 
@@ -79,7 +80,7 @@ docker compose up -d --build
 
 ```powershell
 py -3.10 -m venv .venv
-.\\.venv\\Scripts\\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 python main.py
