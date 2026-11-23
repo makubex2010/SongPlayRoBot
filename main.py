@@ -148,58 +148,57 @@ async def cookie_check_handler(client, message):
 async def search_and_download(client, message):
     query = " ".join(message.command[1:]).strip()
     if not query:
-        await message.reply_text("請提供歌曲名稱或 YouTube 網址。\n例如：/s 南拳媽媽 下雨天")
+        # Send a normal message, not a reply to the user's command.
+        await client.send_message(
+            chat_id=message.chat.id,
+            text="請提供歌曲名稱或 YouTube 網址。\\n例如：/s 南拳媽媽 下雨天",
+        )
         return
 
-    status = await message.reply_text("🔎 正在搜尋歌曲，請稍候……")
     temp_dir = None
     async with download_semaphore:
         try:
-            await status.edit_text("⬇️ 正在下載音訊……")
             temp_dir, audio_path, thumbnail_path, info = await asyncio.to_thread(_download_audio, query)
             title = info.get("title") or Path(audio_path).stem
             webpage_url = info.get("webpage_url") or query
             duration = int(info.get("duration") or 0)
             caption = (f'<b>🎧 標題：</b><a href="{html.escape(webpage_url, quote=True)}">'
                        f'{html.escape(title)}</a>')
-            await status.edit_text("📤 下載完成，正在傳送音訊……")
-            await message.reply_audio(
-                audio=audio_path, caption=caption, parse_mode=ParseMode.HTML, thumb=thumbnail_path,
-                title=title[:64], duration=duration,
-                performer=(info.get("artist") or info.get("uploader") or "")[:64],
-                reply_to_message_id=message.id,
-            )
-            # 音訊成功傳送後，清除機器人的進度訊息與使用者的 /s 指令。
-            # 兩項刪除各自處理，避免刪除訊息失敗影響已完成的歌曲傳送。
-            try:
-                await status.delete()
-            except Exception as delete_exc:
-                logger.warning("無法刪除下載狀態訊息：%s", delete_exc)
 
+            # Send audio directly to the chat: do not quote/reply to the /s command.
+            await client.send_audio(
+                chat_id=message.chat.id,
+                audio=audio_path,
+                caption=caption,
+                parse_mode=ParseMode.HTML,
+                thumb=thumbnail_path,
+                title=title[:64],
+                duration=duration,
+                performer=(info.get("artist") or info.get("uploader") or "")[:64],
+            )
+
+            # Delete the user's /s command only after Telegram accepted the audio.
             try:
                 await message.delete()
                 logger.info("已自動刪除使用者的歌曲下載指令")
             except Exception as delete_exc:
                 logger.warning("無法刪除使用者下載指令：%s", delete_exc)
+
         except Exception as exc:
             logger.exception("歌曲處理失敗")
             error_text = str(exc).strip().replace("<", "‹").replace(">", "›")
             if len(error_text) > 700:
                 error_text = error_text[:700] + "…"
-            try:
-                await status.edit_text(
-                    "❌ 歌曲處理失敗。\n"
-                    f"<code>{html.escape(error_text)}</code>\n\n"
-                    "請確認網址或歌曲名稱正確；若影片有存取限制，請檢查 Cookies。",
-                    parse_mode=ParseMode.HTML,
-                )
-            except Exception:
-                await message.reply_text("❌ 歌曲處理失敗，請稍後再試。")
+            # Failure notice is sent as a standalone message, not as a reply.
+            await client.send_message(
+                chat_id=message.chat.id,
+                text=(
+                    "❌ 歌曲處理失敗。\\n"
+                    f"<code>{html.escape(error_text)}</code>\\n\\n"
+                    "請確認網址或歌曲名稱正確；若影片有存取限制，請檢查 Cookies。"
+                ),
+                parse_mode=ParseMode.HTML,
+            )
         finally:
             if temp_dir:
                 shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-if __name__ == "__main__":
-    logger.info("SongPlayRoBot 啟動中……")
-    app.run()
