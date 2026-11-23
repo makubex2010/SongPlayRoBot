@@ -1,46 +1,37 @@
 {
-    "name": "SongPlayRoBot",
-    "description": "A Modular telegram song bot.",
-    "repository": "https://github.com/makubex2010/SongPlayRoBot",
-    "logo": "https://i.imgur.com/RYqwBHA.jpg",
-    "keywords": [
-       
-        "telegram bot",
-        "pyrogram"
-
-    ],
-    "env": {
-        "APP_ID": {
-            "description": "從 my.telegram.org 取得",
-            "value": ""
-        },
-        "API_HASH": {
-            "description": "從 my.telegram.org 取得",
-            "value": ""
-        },
-        "OWNER": {
-            "description": "您的用戶名不帶@。",
-            "value": "Kevin_RX"
-        },
-        "START_MSG": {
-            "description": "BoT的啟動消息",
-            "value": "<b>嗨! {}, 我是 🎸歌曲播放機器人，</b>發送你想要的歌名或網址... 😍🥰🤗例如:/s 南拳媽媽-下雨天"
-        },
-        "START_IMG": {
-            "description": "啟動消息的照片。",
-            "value": "https://telegra.ph/file/d0cdeca30d2082b437645.jpg"
-        },
-        "BOT_TOKEN": {
-            "description": "https://t.me/BotFather取得",
-            "value": ""
-        }
+  "name": "SongPlayRoBot",
+  "description": "Telegram song search and audio bot",
+  "repository": "https://github.com/makubex2010/SongPlayRoBot",
+  "logo": "https://i.imgur.com/RYqwBHA.jpg",
+  "keywords": ["telegram bot", "pyrogram", "youtube", "yt-dlp"],
+  "env": {
+    "APP_ID": {
+      "description": "Telegram API ID from my.telegram.org (legacy name; API_ID is also supported)",
+      "value": ""
     },
-    "buildpacks": [
-    {
-      "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest"
+    "API_HASH": {
+      "description": "Telegram API Hash from my.telegram.org",
+      "value": ""
     },
-    {
-      "url": "heroku/python"
-        }
-    ]
+    "BOT_TOKEN": {
+      "description": "Bot token from @BotFather",
+      "value": ""
+    },
+    "OWNER": {
+      "description": "Telegram username without @",
+      "value": ""
+    },
+    "START_MSG": {
+      "description": "Welcome message. {0} is replaced with the user's mention.",
+      "value": "歡迎使用音樂下載機器人，{0}！"
+    },
+    "START_IMG": {
+      "description": "Optional welcome image URL or local path",
+      "value": ""
+    },
+    "COOKIES": {
+      "description": "Optional Netscape-format YouTube cookies",
+      "value": ""
+    }
+  }
 }
