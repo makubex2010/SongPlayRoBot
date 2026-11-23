@@ -169,7 +169,18 @@ async def search_and_download(client, message):
                 performer=(info.get("artist") or info.get("uploader") or "")[:64],
                 reply_to_message_id=message.id,
             )
-            await status.delete()
+            # 音訊成功傳送後，清除機器人的進度訊息與使用者的 /s 指令。
+            # 兩項刪除各自處理，避免刪除訊息失敗影響已完成的歌曲傳送。
+            try:
+                await status.delete()
+            except Exception as delete_exc:
+                logger.warning("無法刪除下載狀態訊息：%s", delete_exc)
+
+            try:
+                await message.delete()
+                logger.info("已自動刪除使用者的歌曲下載指令")
+            except Exception as delete_exc:
+                logger.warning("無法刪除使用者下載指令：%s", delete_exc)
         except Exception as exc:
             logger.exception("歌曲處理失敗")
             error_text = str(exc).strip().replace("<", "‹").replace(">", "›")
