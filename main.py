@@ -148,16 +148,21 @@ async def cookie_check_handler(client, message):
 async def search_and_download(client, message):
     query = " ".join(message.command[1:]).strip()
     if not query:
-        # Send a normal message, not a reply to the user's command.
         await client.send_message(
             chat_id=message.chat.id,
-            text="請提供歌曲名稱或 YouTube 網址。\\n例如：/s 南拳媽媽 下雨天",
+            text="請提供歌曲名稱或 YouTube 網址。\n例如：/s 南拳媽媽 下雨天",
         )
         return
 
     temp_dir = None
+    status = await client.send_message(
+        chat_id=message.chat.id,
+        text="🔎 正在搜尋歌曲，請稍候……",
+    )
+
     async with download_semaphore:
         try:
+            await status.edit_text("⬇️ 正在下載音訊……")
             temp_dir, audio_path, thumbnail_path, info = await asyncio.to_thread(_download_audio, query)
             title = info.get("title") or Path(audio_path).stem
             webpage_url = info.get("webpage_url") or query
@@ -165,7 +170,7 @@ async def search_and_download(client, message):
             caption = (f'<b>🎧 標題：</b><a href="{html.escape(webpage_url, quote=True)}">'
                        f'{html.escape(title)}</a>')
 
-            # Send audio directly to the chat: do not quote/reply to the /s command.
+            await status.edit_text("📤 下載完成，正在傳送音訊……")
             await client.send_audio(
                 chat_id=message.chat.id,
                 audio=audio_path,
@@ -177,7 +182,12 @@ async def search_and_download(client, message):
                 performer=(info.get("artist") or info.get("uploader") or "")[:64],
             )
 
-            # Delete the user's /s command only after Telegram accepted the audio.
+            # Remove the status and original command only after audio delivery succeeds.
+            try:
+                await status.delete()
+            except Exception as delete_exc:
+                logger.warning("無法刪除下載狀態訊息：%s", delete_exc)
+
             try:
                 await message.delete()
                 logger.info("已自動刪除使用者的歌曲下載指令")
@@ -189,16 +199,19 @@ async def search_and_download(client, message):
             error_text = str(exc).strip().replace("<", "‹").replace(">", "›")
             if len(error_text) > 700:
                 error_text = error_text[:700] + "…"
-            # Failure notice is sent as a standalone message, not as a reply.
-            await client.send_message(
-                chat_id=message.chat.id,
-                text=(
-                    "❌ 歌曲處理失敗。\\n"
-                    f"<code>{html.escape(error_text)}</code>\\n\\n"
-                    "請確認網址或歌曲名稱正確；若影片有存取限制，請檢查 Cookies。"
-                ),
-                parse_mode=ParseMode.HTML,
+            failure_text = (
+                "❌ 歌曲處理失敗。\n"
+                f"<code>{html.escape(error_text)}</code>\n\n"
+                "請確認網址或歌曲名稱正確；若影片有存取限制，請檢查 Cookies。"
             )
+            try:
+                await status.edit_text(failure_text, parse_mode=ParseMode.HTML)
+            except Exception:
+                await client.send_message(
+                    chat_id=message.chat.id,
+                    text=failure_text,
+                    parse_mode=ParseMode.HTML,
+                )
         finally:
             if temp_dir:
                 shutil.rmtree(temp_dir, ignore_errors=True)
