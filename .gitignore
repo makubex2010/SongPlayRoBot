@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+*.session
+*.session-journal
+cookies.txt
+downloads/
+sessions/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
