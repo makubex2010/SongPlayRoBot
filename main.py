@@ -202,3 +202,7 @@ async def search_and_download(client, message):
         finally:
             if temp_dir:
                 shutil.rmtree(temp_dir, ignore_errors=True)
+
+if __name__ == "__main__":
+    logger.info("SongPlayRoBot 啟動中……")
+    app.run()
