@@ -9,7 +9,11 @@ services:
       DOWNLOAD_LOCATION: /app/downloads
       SESSION_LOCATION: /app/sessions
     volumes:
-      - ./downloads:/app/downloads
-      - ./sessions:/app/sessions
+      - songplay_downloads:/app/downloads
+      - songplay_sessions:/app/sessions
     init: true
     stop_grace_period: 30s
+
+volumes:
+  songplay_downloads:
+  songplay_sessions:
