@@ -1,169 +1,194 @@
+import asyncio
+import html
+import logging
 import os
-import time
-import requests
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from youtube_search import YoutubeSearch
+import shutil
+import tempfile
+from pathlib import Path
+from urllib.parse import urlparse
+
+from dotenv import load_dotenv
+load_dotenv()
+
 import yt_dlp
+from PIL import Image
+from pyrogram import Client, filters
+from pyrogram.enums import ParseMode
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-# 時間轉秒數函式
-def time_to_seconds(time_str):
-    return sum(int(x) * 60 ** i for i, x in enumerate(reversed(time_str.split(':'))))
+from config import Config
 
-# 環境變數配置
-class Config:
-    API_ID = int(os.environ.get("API_ID"))
-    API_HASH = os.environ.get("API_HASH")
-    BOT_TOKEN = os.environ.get("BOT_TOKEN")
-    START_MSG = os.environ.get("START_MSG", "歡迎使用音樂下載機器人，{0}！")
-    START_IMG = os.environ.get("START_IMG", "")  # 可放URL或本地路徑
-    OWNER = os.environ.get("OWNER", "ownerusername")
-    DOWNLOAD_LOCATION = os.environ.get("DOWNLOAD_LOCATION", "./downloads/")
-    COOKIES = os.environ.get("COOKIES", "")  # Youtube cookies
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(),
+                    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+logger = logging.getLogger("songplayrobot")
 
-# 文字與按鈕
-ABS = "源代碼"
-OWNER = "所有者"
-GITCLONE = "https://t.me/PlayStationTw"
-B2 = "github.com/makubex2010/SongPlayRoBot"
-BUTTON1 = "🎮 PlayStation 世界玩家會館 🎮"
+DOWNLOAD_DIR = Path(Config.DOWNLOAD_LOCATION).expanduser()
+DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+DOWNLOAD_LIMIT = max(1, Config.MAX_CONCURRENT_DOWNLOADS)
+download_semaphore = asyncio.Semaphore(DOWNLOAD_LIMIT)
 
-app = Client(
-    "music_bot",
-    api_id=Config.API_ID,
-    api_hash=Config.API_HASH,
-    bot_token=Config.BOT_TOKEN,
-)
+app = Client("songplayrobot", api_id=Config.API_ID, api_hash=Config.API_HASH,
+             bot_token=Config.BOT_TOKEN, workdir=Config.SESSION_LOCATION)
 
-@app.on_message(filters.command('start') & filters.private)
-async def start(client, message):
-    reply_to_id = message.id
-    await message.reply_photo(
-        photo=Config.START_IMG,
-        caption=Config.START_MSG.format(message.from_user.mention),
-        reply_markup=InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton(BUTTON1, url=GITCLONE)],
-                [
-                    InlineKeyboardButton(OWNER, url=f"https://telegram.dog/{Config.OWNER}"),
-                    InlineKeyboardButton(ABS, url=f"https://{B2}"),
-                ],
-            ]
-        ),
-        reply_to_message_id=reply_to_id,
-    )
 
-@app.on_message(filters.command('help') & filters.private)
-async def help_handler(client, message):
-    help_text = (
-        "使用說明：\n"
-        "/s [歌曲名稱] - 搜尋並下載 YouTube 音樂\n"
-        "/cookie_check - 檢查 cookies 是否有效\n"
-        "/help - 顯示此說明"
-    )
-    await message.reply(help_text)
+def _is_url(value: str) -> bool:
+    try:
+        parsed = urlparse(value)
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except ValueError:
+        return False
 
-@app.on_message(filters.command('cookie_check') & filters.private)
-async def cookie_check(client, message):
-    cookies_content = Config.COOKIES
-    if cookies_content and cookies_content.strip():
-        await message.reply("✅ Cookies 已設定。")
-    else:
-        await message.reply("❌ Cookies 未設定或為空。")
 
-@app.on_message(filters.command(['s']) & filters.private)
-async def search_and_download(client, message):
-    query = ' '.join(message.command[1:])
-    if not query:
-        await message.reply("請提供要搜尋的歌曲名稱，例如：\n/s 南拳媽媽-下雨天")
-        return
-
-    m = await message.reply('正在搜尋...請稍候...')
-
-    cookies_content = Config.COOKIES
-    if not cookies_content or not cookies_content.strip():
-        await m.edit("❌ Cookies 未設定，無法下載受限影片。請設置環境變數 COOKIES。")
-        return
-
-    # 將 cookies 內容寫入本地檔案
-    with open('cookies.txt', 'w', encoding='utf-8') as f:
-        f.write(cookies_content.strip())
-
-    ydl_opts = {
-        "format": "bestaudio[ext=m4a]",
-        "cookiefile": "cookies.txt",
-        "quiet": True,
-        "no_warnings": True,
-        "outtmpl": Config.DOWNLOAD_LOCATION + "%(title)s.%(ext)s",
-        "extractor_args": {
-            "youtubetab": {"skip": "authcheck"}
-        }
+def _download_audio(query: str):
+    temp_dir = tempfile.mkdtemp(prefix="songplay_", dir=str(DOWNLOAD_DIR))
+    options = {
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
+        "outtmpl": str(Path(temp_dir) / "%(id)s.%(ext)s"),
+        "noplaylist": True, "quiet": True, "no_warnings": True,
+        "socket_timeout": 20, "retries": 3, "fragment_retries": 3,
+        "extractor_retries": 2, "overwrites": True,
+        "writethumbnail": True,
+        "postprocessors": [{"key": "FFmpegThumbnailsConvertor", "format": "jpg"}],
     }
-
-    audio_file = None
-    thumb_name = None
+    cookie_text = Config.COOKIES.strip()
+    if cookie_text:
+        cookie_path = Path(temp_dir) / "cookies.txt"
+        cookie_path.write_text(cookie_text, encoding="utf-8")
+        options["cookiefile"] = str(cookie_path)
 
     try:
-        results = []
-        count = 0
-        while len(results) == 0 and count < 6:
-            if count > 0:
-                time.sleep(1)
-            results = YoutubeSearch(query, max_results=1).to_dict()
-            count += 1
+        target = query if _is_url(query) else "ytsearch1:" + query
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(target, download=True)
+        if not info:
+            raise RuntimeError("YouTube 沒有回傳可用的影片資訊。")
+        if "entries" in info:
+            info = next((entry for entry in info.get("entries", []) if entry), None)
+        if not info:
+            raise RuntimeError("找不到符合條件的歌曲。")
 
-        if not results:
-            await m.edit('**沒有搜尋到！請用另一種方式搜尋**')
-            return
+        candidates = [Path(item["filepath"]) for item in info.get("requested_downloads") or []
+                      if item.get("filepath")]
+        if info.get("_filename"):
+            candidates.append(Path(info["_filename"]))
+        candidates.extend(Path(temp_dir).glob("*"))
+        audio_path = next((p for p in candidates
+                           if p.is_file() and p.name != "cookies.txt"), None)
+        if audio_path is None:
+            raise RuntimeError("下載完成但找不到音訊檔案。")
 
-        link = f"https://youtube.com{results[0]['url_suffix']}"
-        title = results[0]["title"]
-        thumbnail = results[0]["thumbnails"][0]
-        duration = results[0]["duration"]
+        thumbnail_path = None
+        for candidate in Path(temp_dir).glob("*.jpg"):
+            try:
+                image = Image.open(candidate).convert("RGB")
+                image.thumbnail((320, 320))
+                thumb = Path(temp_dir) / "telegram_thumb.jpg"
+                quality = 88
+                image.save(thumb, format="JPEG", quality=quality, optimize=True)
+                while thumb.stat().st_size > 190_000 and quality > 55:
+                    quality -= 8
+                    image.save(thumb, format="JPEG", quality=quality, optimize=True)
+                if thumb.stat().st_size <= 200_000:
+                    thumbnail_path = str(thumb)
+                break
+            except Exception as exc:
+                logger.warning("縮圖處理失敗，將不附縮圖：%s", exc)
+        return temp_dir, str(audio_path), thumbnail_path, info
+    except Exception:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
 
-        performer = ""
-        thumb_name = f'thumb_{message.id}.jpg'
-        thumb_data = requests.get(thumbnail).content
-        with open(thumb_name, 'wb') as thumb_file:
-            thumb_file.write(thumb_data)
 
-        await m.edit("🔎 找到歌曲 🎶，準備下載...")
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(link, download=False)
-            audio_file = ydl.prepare_filename(info_dict)
-            ydl.download([link])
-
-        rep = (
-            f'🎧 <b>標題 :</b> <a href="{link}">{title}</a>\n'
-            f'⏳ <b>歌曲時間 :</b> <code>{duration}</code>'
-        )
-        dur = time_to_seconds(duration)
-
-        await message.reply_audio(
-            audio_file,
-            caption=rep,
-            parse_mode='HTML',
-            quote=False,
-            title=title,
-            duration=dur,
-            performer=performer,
-            thumb=thumb_name,
-        )
-        await m.delete()
-
-    except Exception as e:
-        await m.edit('❌ 發生內部錯誤，請聯絡管理員！')
-        print("錯誤:", e)
-
-    finally:
+@app.on_message(filters.command("start") & filters.private)
+async def start_handler(client, message):
+    welcome = Config.START_MSG.format(message.from_user.mention)
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton(Config.COMMUNITY_BUTTON, url=Config.COMMUNITY_URL)],
+        [InlineKeyboardButton("所有者", url=f"https://t.me/{Config.OWNER}"),
+         InlineKeyboardButton("源代碼", url=Config.REPOSITORY_URL)],
+    ])
+    if Config.START_IMG:
         try:
-            if audio_file and os.path.exists(audio_file):
-                os.remove(audio_file)
-            if thumb_name and os.path.exists(thumb_name):
-                os.remove(thumb_name)
-        except Exception as e:
-            print("刪除檔案錯誤：", e)
+            await message.reply_photo(Config.START_IMG, caption=welcome, reply_markup=buttons)
+            return
+        except Exception as exc:
+            logger.warning("啟動圖片傳送失敗，改用文字訊息：%s", exc)
+    await message.reply_text(welcome, reply_markup=buttons)
+
+
+@app.on_message(filters.command(["help", "starthelp"]) & filters.private)
+async def help_handler(client, message):
+    await message.reply_text(
+        "🎵 **SongPlayRoBot 使用說明**\n\n"
+        "/s 歌曲名稱 — 搜尋並下載 YouTube 音訊\n"
+        "/s YouTube網址 — 下載指定影片音訊\n"
+        "/ping — 檢查機器人狀態\n"
+        "/cookie_check — 檢查 Cookies 設定\n"
+        "/help — 顯示說明\n\n"
+        "Cookies 為選填；部分受限制影片仍可能需要有效 Cookies。"
+    )
+
+
+@app.on_message(filters.command("ping") & filters.private)
+async def ping_handler(client, message):
+    await message.reply_text("🏓 SongPlayRoBot 正常運作中！")
+
+
+@app.on_message(filters.command("cookie_check") & filters.private)
+async def cookie_check_handler(client, message):
+    if Config.COOKIES.strip():
+        await message.reply_text("✅ 已設定 YouTube Cookies。")
+    else:
+        await message.reply_text(
+            "ℹ️ 尚未設定 Cookies。公開影片可先直接下載；遇到年齡、地區或登入限制時，可能需要有效 Cookies。"
+        )
+
+
+@app.on_message(filters.command("s") & filters.private)
+async def search_and_download(client, message):
+    query = " ".join(message.command[1:]).strip()
+    if not query:
+        await message.reply_text("請提供歌曲名稱或 YouTube 網址。\n例如：/s 南拳媽媽 下雨天")
+        return
+
+    status = await message.reply_text("🔎 正在搜尋歌曲，請稍候……")
+    temp_dir = None
+    async with download_semaphore:
+        try:
+            await status.edit_text("⬇️ 正在下載音訊……")
+            temp_dir, audio_path, thumbnail_path, info = await asyncio.to_thread(_download_audio, query)
+            title = info.get("title") or Path(audio_path).stem
+            webpage_url = info.get("webpage_url") or query
+            duration = int(info.get("duration") or 0)
+            caption = (f'<b>🎧 標題：</b><a href="{html.escape(webpage_url, quote=True)}">'
+                       f'{html.escape(title)}</a>')
+            await status.edit_text("📤 下載完成，正在傳送音訊……")
+            await message.reply_audio(
+                audio=audio_path, caption=caption, parse_mode=ParseMode.HTML, thumb=thumbnail_path,
+                title=title[:64], duration=duration,
+                performer=(info.get("artist") or info.get("uploader") or "")[:64],
+                reply_to_message_id=message.id,
+            )
+            await status.delete()
+        except Exception as exc:
+            logger.exception("歌曲處理失敗")
+            error_text = str(exc).strip().replace("<", "‹").replace(">", "›")
+            if len(error_text) > 700:
+                error_text = error_text[:700] + "…"
+            try:
+                await status.edit_text(
+                    "❌ 歌曲處理失敗。\n"
+                    f"<code>{html.escape(error_text)}</code>\n\n"
+                    "請確認網址或歌曲名稱正確；若影片有存取限制，請檢查 Cookies。",
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception:
+                await message.reply_text("❌ 歌曲處理失敗，請稍後再試。")
+        finally:
+            if temp_dir:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
 
 if __name__ == "__main__":
+    logger.info("SongPlayRoBot 啟動中……")
     app.run()

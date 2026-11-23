@@ -1,0 +1,19 @@
+services:
+  songplayrobot:
+    build: .
+    container_name: songplayrobot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DOWNLOAD_LOCATION: /app/downloads
+      SESSION_LOCATION: /app/sessions
+    volumes:
+      - songplay_downloads:/app/downloads
+      - songplay_sessions:/app/sessions
+    init: true
+    stop_grace_period: 30s
+
+volumes:
+  songplay_downloads:
+  songplay_sessions:
