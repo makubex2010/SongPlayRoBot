@@ -1,8 +1,4 @@
-Pyrogram
-TgCrypto==1.2.2
-yt_dlp
-youtube_search_python
-youtube_search
-requests==2.31.0
-ffmpeg-python
-urllib3==1.26.17
+Pyrogram==2.0.106
+TgCrypto==1.2.5
+yt-dlp[default]
+python-dotenv>=1.0.1
