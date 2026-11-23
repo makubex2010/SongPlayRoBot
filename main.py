@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import yt_dlp
+from PIL import Image
 from pyrogram import Client, filters
 from pyrogram.enums import ParseMode
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -46,6 +47,8 @@ def _download_audio(query: str):
         "noplaylist": True, "quiet": True, "no_warnings": True,
         "socket_timeout": 20, "retries": 3, "fragment_retries": 3,
         "extractor_retries": 2, "overwrites": True,
+        "writethumbnail": True,
+        "postprocessors": [{"key": "FFmpegThumbnailsConvertor", "format": "jpg"}],
     }
     cookie_text = Config.COOKIES.strip()
     if cookie_text:
@@ -73,7 +76,24 @@ def _download_audio(query: str):
                            if p.is_file() and p.name != "cookies.txt"), None)
         if audio_path is None:
             raise RuntimeError("下載完成但找不到音訊檔案。")
-        return temp_dir, str(audio_path), info
+
+        thumbnail_path = None
+        for candidate in Path(temp_dir).glob("*.jpg"):
+            try:
+                image = Image.open(candidate).convert("RGB")
+                image.thumbnail((320, 320))
+                thumb = Path(temp_dir) / "telegram_thumb.jpg"
+                quality = 88
+                image.save(thumb, format="JPEG", quality=quality, optimize=True)
+                while thumb.stat().st_size > 190_000 and quality > 55:
+                    quality -= 8
+                    image.save(thumb, format="JPEG", quality=quality, optimize=True)
+                if thumb.stat().st_size <= 200_000:
+                    thumbnail_path = str(thumb)
+                break
+            except Exception as exc:
+                logger.warning("縮圖處理失敗，將不附縮圖：%s", exc)
+        return temp_dir, str(audio_path), thumbnail_path, info
     except Exception:
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise
@@ -136,7 +156,7 @@ async def search_and_download(client, message):
     async with download_semaphore:
         try:
             await status.edit_text("⬇️ 正在下載音訊……")
-            temp_dir, audio_path, info = await asyncio.to_thread(_download_audio, query)
+            temp_dir, audio_path, thumbnail_path, info = await asyncio.to_thread(_download_audio, query)
             title = info.get("title") or Path(audio_path).stem
             webpage_url = info.get("webpage_url") or query
             duration = int(info.get("duration") or 0)
@@ -144,7 +164,7 @@ async def search_and_download(client, message):
                        f'{html.escape(title)}</a>')
             await status.edit_text("📤 下載完成，正在傳送音訊……")
             await message.reply_audio(
-                audio=audio_path, caption=caption, parse_mode=ParseMode.HTML,
+                audio=audio_path, caption=caption, parse_mode=ParseMode.HTML, thumb=thumbnail_path,
                 title=title[:64], duration=duration,
                 performer=(info.get("artist") or info.get("uploader") or "")[:64],
                 reply_to_message_id=message.id,
